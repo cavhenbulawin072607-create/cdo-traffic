@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Saved Runs - CDO Smart Traffic Light</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+    <h1>Saved Runs</h1>
+    <p>Cagayan de Oro City, Misamis Oriental</p>
+    <a href="city.html">City map (3D)</a>
+    <a href="index.html">Back to simulator</a>
+</header>
+
+<div class="runs">
+    <div class="filters">
+        <label>Location
+            <select id="locationFilter">
+                <option value="">All locations</option>
+                <option value="cogon">Cogon Market</option>
+                <option value="carmen">Carmen Market</option>
+                <option value="highway">National Hwy (Bulua/Kauswagan)</option>
+            </select>
+        </label>
+        <label>Mode
+            <select id="modeFilter">
+                <option value="">All modes</option>
+                <option value="fixed">Fixed Timer</option>
+                <option value="smart">Smart</option>
+            </select>
+        </label>
+    </div>
+
+    <h2>Close-up simulator runs</h2>
+    <div id="summary" class="summary"></div>
+    <div id="tableArea" class="table-wrap">Loading...</div>
+
+    <h2 class="section-title">City map runs</h2>
+    <div id="citySummary" class="summary"></div>
+    <div id="cityTableArea" class="table-wrap">Loading...</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase.js"></script>
+<script src="runs.js"></script>
+</body>
+</html>

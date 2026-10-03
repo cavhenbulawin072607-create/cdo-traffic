@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CDO Traffic Monitor</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css">
+<link rel="stylesheet" href="city.css">
+</head>
+<body>
+<div id="map"></div>
+
+<button id="panelToggle" class="panel-toggle" type="button">☰ Panel</button>
+<div id="toolBanner" class="tool-banner hidden"></div>
+
+<aside id="panel" class="panel">
+    <h1>CDO Traffic Monitor</h1>
+    <p class="sub">Cagayan de Oro City · <span id="signalCount"></span> signalized intersections</p>
+    <nav><a href="index.html">Close-up simulator</a> · <a href="runs.html">Saved runs</a></nav>
+
+    <div class="clock-row">
+        <span id="clock" class="clock"></span>
+        <span id="peak" class="tag"></span>
+    </div>
+    <p id="dayLabel" class="day"></p>
+    <div id="liveBadge" class="live-badge hidden">● LIVE</div>
+    <div id="replayBadge" class="replay-badge hidden">⏪ Replay mode</div>
+
+    <div class="tabs">
+        <button type="button" data-tab="monitor" class="active">Monitor</button>
+        <button type="button" data-tab="controls">Controls</button>
+        <button type="button" data-tab="live">Live</button>
+        <button type="button" data-tab="charts">Charts</button>
+        <button type="button" data-tab="tools">Tools</button>
+    </div>
+
+    <div id="tab-monitor" class="tab">
+        <section>
+            <div class="kpis">
+                <div><span id="kQueued">0</span><small>vehicles waiting</small></div>
+                <div><span id="kJam">0</span><small>heavy intersections</small></div>
+                <div><span id="kIncidents">0</span><small>incidents</small></div>
+            </div>
+        </section>
+
+        <section>
+            <h2>Worst traffic right now</h2>
+            <ol id="worstList" class="worst"></ol>
+        </section>
+
+        <section>
+            <h2>Alerts</h2>
+            <ul id="alertList" class="alerts"></ul>
+        </section>
+
+        <section>
+            <h2>Legend</h2>
+            <div class="legend">
+                <span><i style="background:#22c55e"></i>Light</span>
+                <span><i style="background:#eab308"></i>Moderate</span>
+                <span><i style="background:#f97316"></i>Heavy</span>
+                <span><i style="background:#dc2626"></i>Standstill</span>
+                <span><i class="round" style="background:#a855f7"></i>Market / terminal / mall</span>
+                <span><i class="round hospital"></i>Hospital</span>
+                <span><i style="background:#3b82f6"></i>Flood zone</span>
+            </div>
+            <p class="note">3D bars are the queue at each traffic light. The ring is the main road's signal (white = pedestrians crossing). Click a light for details.</p>
+        </section>
+    </div>
+
+    <div id="tab-controls" class="tab hidden">
+        <section>
+            <div class="row">
+                <label>Date<input type="date" id="simDate"></label>
+                <label>Start time<input type="time" id="startTime" value="07:00"></label>
+                <button id="nowBtn" type="button">Now</button>
+            </div>
+            <div class="row">
+                <label>Mode
+                    <select id="mode">
+                        <option value="fixed">Fixed Timer</option>
+                        <option value="smart">Smart</option>
+                    </select>
+                </label>
+                <label>Speed
+                    <select id="speed">
+                        <option value="1">1x</option>
+                        <option value="10" selected>10x</option>
+                        <option value="30">30x</option>
+                        <option value="60">60x</option>
+                    </select>
+                </label>
+            </div>
+            <label>Weather
+                <select id="weather">
+                    <option value="auto">Real forecast (Open-Meteo)</option>
+                    <option value="clear">Clear</option>
+                    <option value="rain">Light rain</option>
+                    <option value="heavy">Heavy rain</option>
+                </select>
+            </label>
+            <label class="check"><input type="checkbox" id="wave"> Green wave on C. M. Recto Ave (toward downtown)</label>
+            <label class="check"><input type="checkbox" id="ped"> Pedestrian walk phase near markets</label>
+            <div class="buttons">
+                <button id="playBtn" type="button">Pause</button>
+                <button id="resetBtn" type="button">Reset</button>
+            </div>
+        </section>
+
+        <section>
+            <h2>Emergency vehicle</h2>
+            <label>From<select id="ambulanceFrom"></select></label>
+            <label>To hospital<select id="ambulanceTo"></select></label>
+            <label class="check"><input type="checkbox" id="priority" checked> Signal priority for ambulance</label>
+            <button id="ambulanceBtn" type="button">🚑 Send ambulance</button>
+            <p class="note">The route follows real roads (OSRM routing on OpenStreetMap). Try the same trip with priority on and off.</p>
+            <div id="ambulanceResult" class="result"></div>
+        </section>
+    </div>
+
+    <div id="tab-live" class="tab hidden">
+        <section>
+            <h2>Real time</h2>
+            <button id="liveClockBtn" type="button">🕒 Go live (Philippine time)</button>
+            <p class="note">Sets the date and clock to right now in Manila time and runs at 1x speed.</p>
+        </section>
+
+        <section>
+            <h2>Real data status</h2>
+            <ul class="status-list">
+                <li><span>🗺 Map, roads, lanes, signals</span><strong>OpenStreetMap</strong></li>
+                <li><span>📅 Holidays</span><strong id="holidayStatus">Loading…</strong></li>
+                <li><span>🌦 Weather</span><strong id="weatherStatus">Loading…</strong></li>
+                <li><span>🚦 Live traffic</span><strong id="tomtomStatus">-</strong></li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>Live traffic (TomTom)</h2>
+            <p id="liveNote" class="note"></p>
+            <label class="check"><input type="checkbox" id="liveToggle"> Show real traffic colors on roads</label>
+            <label class="check"><input type="checkbox" id="simRoadsToggle" checked> Show simulated road colors</label>
+            <label class="check"><input type="checkbox" id="realSpeedToggle"> Get real speeds at each traffic light</label>
+            <label class="check"><input type="checkbox" id="followRealToggle"> Make the simulation follow real traffic</label>
+            <label class="check"><input type="checkbox" id="realIncidentToggle"> Use real incidents (accidents, roadworks)</label>
+            <button id="tomtomRefreshBtn" type="button">Refresh now</button>
+            <p class="note">Real speeds refresh every 10 minutes (about 40 requests each time). The free TomTom plan allows 2,500 requests per day.</p>
+        </section>
+    </div>
+
+    <div id="tab-charts" class="tab hidden">
+        <section>
+            <h2>Average wait per hour</h2>
+            <div class="chart-box"><canvas id="waitChart"></canvas></div>
+            <p class="note">Red bands are CDO peak hours (7–8 AM, 4:30–7 PM).</p>
+            <button id="fullDayBtn" type="button">Simulate full day (both modes)</button>
+        </section>
+
+        <section>
+            <h2>Fixed vs Smart</h2>
+            <table>
+                <thead>
+                    <tr><th>Metric</th><th id="colFixed">Fixed</th><th id="colSmart">Smart</th></tr>
+                </thead>
+                <tbody id="statsBody"></tbody>
+            </table>
+            <button id="saveCityBtn" type="button">Save city run</button>
+        </section>
+
+        <section>
+            <h2>Time-lapse replay</h2>
+            <div class="row">
+                <label>Recording
+                    <select id="replayMode">
+                        <option value="fixed">Fixed Timer</option>
+                        <option value="smart">Smart</option>
+                    </select>
+                </label>
+                <button id="replayPlayBtn" type="button">▶ Play</button>
+                <button id="replayExitBtn" type="button">Live</button>
+            </div>
+            <input type="range" id="replaySlider" min="0" max="287" value="84">
+            <p class="note">Replay time: <strong id="replayTime">-</strong> · <span id="replayInfo"></span></p>
+        </section>
+    </div>
+
+    <div id="tab-tools" class="tab hidden">
+        <section>
+            <h2>Add a missing traffic light</h2>
+            <button id="addLightBtn" type="button">➕ Click on the map to add</button>
+            <form id="lightForm" class="tool-form hidden">
+                <label>Name<input type="text" id="lightName" maxlength="80" required></label>
+                <label>Main road<input type="text" id="lightMain" maxlength="80"></label>
+                <label>Cross road<input type="text" id="lightCross" maxlength="80"></label>
+                <label>Road size
+                    <select id="lightRank">
+                        <option value="5">Highway / major avenue</option>
+                        <option value="4">Big street</option>
+                        <option value="3">Medium street</option>
+                        <option value="2">Small street</option>
+                    </select>
+                </label>
+                <div class="buttons">
+                    <button type="submit">Save light</button>
+                    <button type="button" class="secondary" data-cancel-tool>Cancel</button>
+                </div>
+            </form>
+        </section>
+
+        <section>
+            <h2>Flood-prone zones</h2>
+            <button id="addFloodBtn" type="button">🌊 Click on the map to mark</button>
+            <form id="floodForm" class="tool-form hidden">
+                <label>Name<input type="text" id="floodName" maxlength="80" required></label>
+                <label>Size
+                    <select id="floodRadius">
+                        <option value="200">Small (200 m)</option>
+                        <option value="400" selected>Medium (400 m)</option>
+                        <option value="800">Large (800 m)</option>
+                        <option value="1500">Very large (1.5 km)</option>
+                    </select>
+                </label>
+                <div class="buttons">
+                    <button type="submit">Save zone</button>
+                    <button type="button" class="secondary" data-cancel-tool>Cancel</button>
+                </div>
+            </form>
+            <ul id="floodList" class="item-list"></ul>
+            <p class="note">Flood zones only matter when "Rainy day" is on.</p>
+        </section>
+
+        <section>
+            <h2>Calibrate with a real count</h2>
+            <form id="calForm" class="tool-form">
+                <label>Intersection<select id="calIntersection"></select></label>
+                <div class="row">
+                    <label>Minutes counted<input type="number" id="calMinutes" min="1" max="60" value="5"></label>
+                    <label>Time counted<input type="time" id="calTime" value="07:30"></label>
+                </div>
+                <div class="row">
+                    <label>Main road vehicles<input type="number" id="calMain" min="0" max="5000" required></label>
+                    <label>Cross road vehicles<input type="number" id="calCross" min="0" max="5000" required></label>
+                </div>
+                <button type="submit">Apply and save</button>
+            </form>
+            <p class="note">Stand at the intersection and count every vehicle passing on each road (both directions) for a few minutes. The day type uses the date in Controls.</p>
+        </section>
+
+    </div>
+
+    <p id="message" class="message"></p>
+    <p class="note">Real data: OpenStreetMap (map, lanes, signals, places), Nager.Date (holidays), Open-Meteo (weather), OSRM (routes), TomTom (live traffic, optional). Vehicle queues are simulated.</p>
+</aside>
+
+<script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase.js"></script>
+<script src="config.js"></script>
+<script src="data/cdo-data.js"></script>
+<script src="city-sim.js"></script>
+<script src="city-map.js"></script>
+<script src="city-ui.js"></script>
+</body>
+</html>

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CDO Smart Traffic Light</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+    <h1>CDO Smart Traffic Light</h1>
+    <p>Cagayan de Oro City, Misamis Oriental</p>
+    <a href="city.html">City map (3D)</a>
+    <a href="runs.html">View saved runs</a>
+</header>
+
+<main>
+    <section class="sim">
+        <canvas id="road" width="600" height="600"></canvas>
+        <div id="legend" class="legend"></div>
+        <p class="note">Vehicles with a white outline are stopped to load passengers.</p>
+    </section>
+
+    <section class="panel">
+        <div class="box">
+            <h2>Setup</h2>
+            <label>Location
+                <select id="location">
+                    <option value="cogon">Cogon Market (Yacapin St x Capt. Vicente Roa St)</option>
+                    <option value="carmen">Carmen Market</option>
+                    <option value="highway">National Highway (Bulua/Kauswagan)</option>
+                </select>
+            </label>
+            <p id="locationNote" class="note"></p>
+            <label>Start time
+                <input type="time" id="startTime" value="07:00">
+            </label>
+            <label>Mode
+                <select id="mode">
+                    <option value="fixed">Fixed Timer</option>
+                    <option value="smart">Smart</option>
+                </select>
+            </label>
+            <label class="check"><input type="checkbox" id="rain"> Rainy day</label>
+            <label>Simulation speed
+                <select id="speed">
+                    <option value="1">1x</option>
+                    <option value="2">2x</option>
+                    <option value="4">4x</option>
+                </select>
+            </label>
+            <div class="buttons">
+                <button id="playBtn">Pause</button>
+                <button id="resetBtn">Reset</button>
+                <button id="saveBtn">Save Run</button>
+            </div>
+            <p id="message" class="note"></p>
+        </div>
+
+        <div class="box">
+            <h2>Status</h2>
+            <p>Clock: <strong id="clock"></strong> <span id="peak" class="tag"></span></p>
+            <p id="lightInfo"></p>
+        </div>
+
+        <div class="box">
+            <h2>Spawn rate</h2>
+            <label><span id="nameN"></span>: <span id="valN"></span><input type="range" id="rateN" min="0" max="200" value="100"></label>
+            <label><span id="nameS"></span>: <span id="valS"></span><input type="range" id="rateS" min="0" max="200" value="100"></label>
+            <label><span id="nameE"></span>: <span id="valE"></span><input type="range" id="rateE" min="0" max="200" value="100"></label>
+            <label><span id="nameW"></span>: <span id="valW"></span><input type="range" id="rateW" min="0" max="200" value="100"></label>
+        </div>
+
+        <div class="box">
+            <h2>Stats</h2>
+            <table>
+                <thead>
+                    <tr><th>Metric</th><th id="colFixed">Fixed</th><th id="colSmart">Smart</th></tr>
+                </thead>
+                <tbody id="statsBody"></tbody>
+            </table>
+        </div>
+    </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
