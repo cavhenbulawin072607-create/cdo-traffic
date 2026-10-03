@@ -236,7 +236,7 @@ function updateMonitor() {
         const lv = level(congestion(it));
         const flag = !sim.replay && (it.s.incident > 0 || it.realIncident) ? " ⚠" : "";
         const real = it.real ? " · real " + Math.round(it.real.speed) + " km/h" : "";
-        return '<li data-id="' + it.id + '"><span class="badge" style="background:' + lv.color + '">' + lv.name + "</span>"
+        return '<li data-id="' + it.id + '"><span class="badge" style="background:' + lv.color + ";color:" + (lv.name === "Standstill" || lv.name === "Heavy" ? "#fff" : "#111") + '">' + lv.name + "</span>"
             + escapeHtml(it.name) + " · " + Math.round(totalQueue(it)) + flag + real + "</li>";
     }).join(""));
 
@@ -417,7 +417,7 @@ $("ambulanceBtn").addEventListener("click", async () => {
     showMessage("Ambulance on the way (" + route.source + ").");
     setRunning(true);
     const bounds = route.coords.reduce((b, c) => b.extend(c), new maplibregl.LngLatBounds(route.coords[0], route.coords[0]));
-    map.fitBounds(bounds, { padding: 80, pitch: 50, maxZoom: 16 });
+    map.fitBounds(bounds, { padding: 80, maxZoom: 16 });
 });
 
 $("fullDayBtn").addEventListener("click", () => {

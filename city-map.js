@@ -1,4 +1,31 @@
-const CONG_COLOR = ["interpolate", ["linear"], ["get", "c"], 0, "#22c55e", 0.35, "#eab308", 0.6, "#f97316", 0.85, "#dc2626"];
+const CONG_COLOR = ["step", ["get", "c"], "#63d668", 0.35, "#ff974d", 0.6, "#f23c32", 0.85, "#811f1f"];
+const ROAD_SCALE = ["case", [">=", ["get", "k"], 4], 1, [">=", ["get", "k"], 3], 0.8, 0.6];
+const SATELLITE_TILES = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+const TERRAIN_TILES = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
+const HOUSE_COLORS = [
+    "match", ["%", ["to-number", ["id"], 0], 8],
+    0, "#efe3c8",
+    1, "#d9946b",
+    2, "#c3d6e4",
+    3, "#ecc79a",
+    4, "#b9d3ae",
+    5, "#f4f1ea",
+    6, "#e2aa98",
+    "#d8cdb8"
+];
+const BUILDING_COLOR = [
+    "case",
+    ["has", "colour"], ["get", "colour"],
+    [">=", ["get", "render_height"], 20],
+    ["interpolate", ["linear"], ["get", "render_height"], 20, "#c4ced8", 60, "#9fb2c6", 120, "#7f95ad"],
+    HOUSE_COLORS
+];
+
+let basemap = "satellite";
+let terrainOn = false;
+let styleLabelLayers = [];
+let lastSunMinute = -1;
+let styleRoadLayers = [];
 
 let mapReady = false;
 let popup = null;
@@ -87,14 +114,25 @@ const corridorGeo = collection([{
 const map = new maplibregl.Map({
     container: "map",
     style: "https://tiles.openfreemap.org/styles/liberty",
-    center: [124.645, 8.479],
-    zoom: 13.6,
-    pitch: 55,
-    bearing: -15,
+    center: [124.6404, 8.4835],
+    zoom: 14.3,
+    pitch: 0,
+    bearing: 0,
     maxBounds: [[124.5, 8.33], [124.85, 8.6]]
 });
 
 map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
+map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-right");
+
+document.querySelectorAll("[data-basemap]").forEach(btn => {
+    btn.addEventListener("click", () => {
+        if (mapReady) setBasemap(btn.dataset.basemap);
+    });
+});
+
+document.getElementById("terrainToggle").addEventListener("change", e => {
+    if (mapReady) setTerrain3D(e.target.checked);
+});
 
 function labelLayer(id, source, minzoom, size, color) {
     return {
@@ -109,11 +147,153 @@ function labelLayer(id, source, minzoom, size, color) {
             "text-offset": [0, 1.2],
             "text-anchor": "top"
         },
-        paint: { "text-color": color, "text-halo-color": "#ffffff", "text-halo-width": 1.5 }
+        paint: { "text-color": "#ffffff", "text-halo-color": color, "text-halo-width": 1.6 }
     };
 }
 
+function setupRealisticMap() {
+    const layers = map.getStyle().layers;
+    styleRoadLayers = layers
+        .filter(l => l.type === "line" && /^(road|bridge|tunnel)_/.test(l.id) && !/rail/.test(l.id))
+        .map(l => l.id);
+    const firstRoad = layers.find(l => /^(tunnel|road)_/.test(l.id));
+    styleLabelLayers = layers
+        .filter(l => l.type === "symbol" && l.layout && l.layout["text-field"])
+        .map(l => ({
+            id: l.id,
+            color: map.getPaintProperty(l.id, "text-color"),
+            halo: map.getPaintProperty(l.id, "text-halo-color"),
+            haloWidth: map.getPaintProperty(l.id, "text-halo-width")
+        }));
+    styleRoadLayers = styleRoadLayers.map(id => ({ id: id, opacity: map.getPaintProperty(id, "line-opacity") }));
+
+    map.addSource("satellite", {
+        type: "raster",
+        tiles: [SATELLITE_TILES],
+        tileSize: 256,
+        maxzoom: 19,
+        attribution: "Imagery © Esri, Maxar, Earthstar Geographics"
+    });
+    map.addLayer({
+        id: "satellite-layer",
+        type: "raster",
+        source: "satellite",
+        layout: { visibility: "none" },
+        paint: { "raster-fade-duration": 200 }
+    }, firstRoad ? firstRoad.id : undefined);
+
+    map.addSource("terrain-dem", {
+        type: "raster-dem",
+        tiles: [TERRAIN_TILES],
+        tileSize: 256,
+        maxzoom: 15,
+        encoding: "terrarium",
+        attribution: "Terrain: Mapzen / AWS Open Data"
+    });
+    map.addSource("hillshade-dem", {
+        type: "raster-dem",
+        tiles: [TERRAIN_TILES],
+        tileSize: 256,
+        maxzoom: 15,
+        encoding: "terrarium"
+    });
+    map.addLayer({
+        id: "hillshade",
+        type: "hillshade",
+        source: "hillshade-dem",
+        paint: { "hillshade-exaggeration": 0.35, "hillshade-shadow-color": "#5a6b5a" }
+    }, "water");
+
+    if (map.getLayer("building-3d")) {
+        map.setLayerZoomRange("building-3d", 13, 24);
+        map.setPaintProperty("building-3d", "fill-extrusion-color", BUILDING_COLOR);
+        map.setPaintProperty("building-3d", "fill-extrusion-vertical-gradient", true);
+    }
+    if (map.getLayer("building")) map.setLayoutProperty("building", "visibility", "none");
+
+    try {
+        basemap = localStorage.getItem("cdo-basemap-v2") || basemap;
+        terrainOn = localStorage.getItem("cdo-terrain-v2") === "on";
+    } catch (err) {
+    }
+    setBasemap(basemap);
+    setTerrain3D(terrainOn);
+}
+
+function setBasemap(mode) {
+    basemap = mode;
+    const satellite = mode !== "map";
+    map.setLayoutProperty("satellite-layer", "visibility", satellite ? "visible" : "none");
+    map.setLayoutProperty("hillshade", "visibility", satellite ? "none" : "visible");
+    styleRoadLayers.forEach(r => map.setPaintProperty(r.id, "line-opacity", satellite ? 0.22 : (r.opacity === undefined ? 1 : r.opacity)));
+    styleLabelLayers.forEach(l => {
+        map.setPaintProperty(l.id, "text-color", satellite ? "#ffffff" : l.color);
+        map.setPaintProperty(l.id, "text-halo-color", satellite ? "rgba(0, 0, 0, 0.8)" : l.halo);
+        map.setPaintProperty(l.id, "text-halo-width", satellite ? 1.4 : (l.haloWidth === undefined ? 1 : l.haloWidth));
+    });
+    if (map.getLayer("building-3d")) {
+        map.setLayoutProperty("building-3d", "visibility", mode === "satellite" ? "none" : "visible");
+        map.setPaintProperty("building-3d", "fill-extrusion-opacity", mode === "hybrid" ? 0.55 : 0.92);
+        map.setPaintProperty("building-3d", "fill-extrusion-color", mode === "hybrid" ? "#f5f1e8" : BUILDING_COLOR);
+    }
+    document.querySelectorAll("[data-basemap]").forEach(b => b.classList.toggle("active", b.dataset.basemap === mode));
+    try {
+        localStorage.setItem("cdo-basemap-v2", mode);
+    } catch (err) {
+    }
+    lastSunMinute = -1;
+}
+
+function setTerrain3D(on) {
+    terrainOn = on;
+    map.setTerrain(on ? { source: "terrain-dem", exaggeration: 1.4 } : null);
+    const box = document.getElementById("terrainToggle");
+    if (box) box.checked = on;
+    try {
+        localStorage.setItem("cdo-terrain-v2", on ? "on" : "off");
+    } catch (err) {
+    }
+}
+
+function updateSun(clock) {
+    const minute = Math.floor(clock / 60);
+    if (minute === lastSunMinute) return;
+    lastSunMinute = minute;
+    const hours = clock / 3600;
+    const day = hours >= 6 && hours <= 18;
+    const t = day ? (hours - 6) / 12 : 0;
+    const azimuth = 90 + t * 180;
+    const polar = day ? 80 - Math.sin(t * Math.PI) * 60 : 80;
+    const dusk = hours >= 17.5 && hours <= 18.5 || hours >= 5.5 && hours <= 6.5;
+
+    map.setLight({
+        anchor: "map",
+        position: [1.5, azimuth, polar],
+        color: day ? (dusk ? "#ffc58a" : "#ffffff") : "#8ea2d8",
+        intensity: day ? 0.45 : 0.2
+    });
+
+    if (map.getLayer("satellite-layer")) {
+        map.setPaintProperty("satellite-layer", "raster-brightness-max", day ? 1 : 0.45);
+        map.setPaintProperty("satellite-layer", "raster-saturation", day ? 0.05 : -0.4);
+    }
+
+    try {
+        map.setSky({
+            "sky-color": day ? (dusk ? "#f4a261" : "#7fb8f0") : "#0b1730",
+            "horizon-color": day ? (dusk ? "#ffd6a5" : "#e6f2ff") : "#1f2d4d",
+            "fog-color": day ? "#e6eef5" : "#1a2238",
+            "sky-horizon-blend": 0.6,
+            "horizon-fog-blend": 0.6,
+            "fog-ground-blend": 0.9,
+            "atmosphere-blend": ["interpolate", ["linear"], ["zoom"], 0, 1, 12, 0.6, 16, 0]
+        });
+    } catch (err) {
+    }
+}
+
 map.on("load", () => {
+    setupRealisticMap();
     const firstSymbol = map.getStyle().layers.find(l => l.type === "symbol");
     const before = firstSymbol ? firstSymbol.id : undefined;
 
@@ -136,14 +316,24 @@ map.on("load", () => {
     }, before);
 
     map.addLayer({
+        id: "traffic-casing",
+        type: "line",
+        source: "traffic",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+            "line-color": "rgba(0, 0, 0, 0.45)",
+            "line-width": ["interpolate", ["exponential", 1.6], ["zoom"], 11, ["*", 2, ROAD_SCALE], 14, ["*", 4.5, ROAD_SCALE], 17, ["*", 11, ROAD_SCALE]]
+        }
+    }, before);
+
+    map.addLayer({
         id: "traffic-roads",
         type: "line",
         source: "traffic",
         layout: { "line-cap": "round", "line-join": "round" },
         paint: {
             "line-color": CONG_COLOR,
-            "line-width": ["interpolate", ["linear"], ["zoom"], 12, ["*", 0.6, ["get", "k"]], 16, ["*", 2.2, ["get", "k"]]],
-            "line-opacity": 0.85
+            "line-width": ["interpolate", ["exponential", 1.6], ["zoom"], 11, ["*", 1, ROAD_SCALE], 14, ["*", 3, ROAD_SCALE], 17, ["*", 8, ROAD_SCALE]]
         }
     }, before);
 
@@ -167,6 +357,7 @@ map.on("load", () => {
         id: "queue-bars",
         type: "fill-extrusion",
         source: "bars",
+        layout: { visibility: "none" },
         paint: {
             "fill-extrusion-color": CONG_COLOR,
             "fill-extrusion-height": ["get", "hgt"],
@@ -179,17 +370,19 @@ map.on("load", () => {
         id: "hotspot-dots",
         type: "circle",
         source: "hotspots",
-        paint: { "circle-color": "#a855f7", "circle-radius": 4, "circle-stroke-color": "#ffffff", "circle-stroke-width": 1 }
+        minzoom: 13,
+        paint: { "circle-color": "#a855f7", "circle-radius": 4, "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.5 }
     });
-    map.addLayer(labelLayer("hotspot-labels", "hotspots", 14.5, 11, "#6b21a8"));
+    map.addLayer(labelLayer("hotspot-labels", "hotspots", 15, 11, "#581c87"));
 
     map.addLayer({
         id: "hospital-dots",
         type: "circle",
         source: "hospitals",
-        paint: { "circle-color": "#ffffff", "circle-radius": 5, "circle-stroke-color": "#dc2626", "circle-stroke-width": 3 }
+        minzoom: 12,
+        paint: { "circle-color": "#ffffff", "circle-radius": 4.5, "circle-stroke-color": "#dc2626", "circle-stroke-width": 2.5 }
     });
-    map.addLayer(labelLayer("hospital-labels", "hospitals", 14.5, 11, "#b91c1c"));
+    map.addLayer(labelLayer("hospital-labels", "hospitals", 15, 11, "#7f1d1d"));
 
     map.addLayer({
         id: "signal-dots",
@@ -197,12 +390,12 @@ map.on("load", () => {
         source: "signals",
         paint: {
             "circle-color": CONG_COLOR,
-            "circle-radius": ["interpolate", ["linear"], ["zoom"], 12, 5, 16, 11],
+            "circle-radius": ["interpolate", ["linear"], ["zoom"], 11, 2.5, 14, 4.5, 17, 9],
             "circle-stroke-color": ["get", "light"],
-            "circle-stroke-width": 3
+            "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 11, 1, 15, 2.5]
         }
     });
-    map.addLayer(labelLayer("signal-labels", "signals", 15, 12, "#111111"));
+    map.addLayer(labelLayer("signal-labels", "signals", 16, 11, "#111111"));
 
     map.addLayer({
         id: "real-incident-dots",
@@ -231,6 +424,10 @@ map.on("load", () => {
     map.on("click", e => {
         if (activeTool) onMapToolClick(e.lngLat);
     });
+
+    const showBars = () => map.setLayoutProperty("queue-bars", "visibility", map.getPitch() > 20 ? "visible" : "none");
+    map.on("pitchend", showBars);
+    showBars();
 
     mapReady = true;
     render();
@@ -316,7 +513,7 @@ function openPopup(id) {
 function flyToIntersection(id) {
     const it = INTERSECTIONS[id];
     if (!it) return;
-    map.flyTo({ center: [it.lon, it.lat], zoom: 16.5, pitch: 60 });
+    map.flyTo({ center: [it.lon, it.lat], zoom: 17 });
     openPopup(id);
 }
 
@@ -386,6 +583,7 @@ function updateMap() {
     map.getSource("signals").setData(signalGeo);
     map.getSource("bars").setData(barGeo);
     map.setLayoutProperty("corridor-line", "visibility", settings.wave ? "visible" : "none");
+    updateSun(viewClock());
     updateAmbulanceMarker();
     if (popup && selectedId !== null && popup.isOpen()) popup.setHTML(popupHtml(INTERSECTIONS[selectedId]));
 }

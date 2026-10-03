@@ -13,6 +13,15 @@
 <button id="panelToggle" class="panel-toggle" type="button">☰ Panel</button>
 <div id="toolBanner" class="tool-banner hidden"></div>
 
+<div class="map-style">
+    <div class="map-style-buttons">
+        <button type="button" data-basemap="map">🗺 Map</button>
+        <button type="button" data-basemap="satellite" class="active">🛰 Satellite</button>
+        <button type="button" data-basemap="hybrid">🏙 Hybrid 3D</button>
+    </div>
+    <label class="check"><input type="checkbox" id="terrainToggle" checked> 3D terrain (hills)</label>
+</div>
+
 <aside id="panel" class="panel">
     <h1>CDO Traffic Monitor</h1>
     <p class="sub">Cagayan de Oro City · <span id="signalCount"></span> signalized intersections</p>
@@ -56,15 +65,15 @@
         <section>
             <h2>Legend</h2>
             <div class="legend">
-                <span><i style="background:#22c55e"></i>Light</span>
-                <span><i style="background:#eab308"></i>Moderate</span>
-                <span><i style="background:#f97316"></i>Heavy</span>
-                <span><i style="background:#dc2626"></i>Standstill</span>
+                <span><i style="background:#63d668"></i>Light</span>
+                <span><i style="background:#ff974d"></i>Moderate</span>
+                <span><i style="background:#f23c32"></i>Heavy</span>
+                <span><i style="background:#811f1f"></i>Standstill</span>
                 <span><i class="round" style="background:#a855f7"></i>Market / terminal / mall</span>
                 <span><i class="round hospital"></i>Hospital</span>
                 <span><i style="background:#3b82f6"></i>Flood zone</span>
             </div>
-            <p class="note">3D bars are the queue at each traffic light. The ring is the main road's signal (white = pedestrians crossing). Click a light for details.</p>
+            <p class="note">Tilt the map (right-click and drag) to see 3D bars for the queue at each light. The ring is the main road's signal (white = pedestrians crossing). Click a light for details.</p>
         </section>
     </div>
 

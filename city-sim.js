@@ -31,10 +31,10 @@ const PEAKS = [
     [1140, 1200, 1.4]
 ];
 const LEVELS = [
-    { max: 0.35, name: "Light", color: "#22c55e" },
-    { max: 0.6, name: "Moderate", color: "#eab308" },
-    { max: 0.85, name: "Heavy", color: "#f97316" },
-    { max: Infinity, name: "Standstill", color: "#dc2626" }
+    { max: 0.35, name: "Light", color: "#63d668" },
+    { max: 0.6, name: "Moderate", color: "#ff974d" },
+    { max: 0.85, name: "Heavy", color: "#f23c32" },
+    { max: Infinity, name: "Standstill", color: "#811f1f" }
 ];
 const FALLBACK_HOLIDAYS = {
     "01-01": "New Year's Day",

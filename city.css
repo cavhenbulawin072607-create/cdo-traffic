@@ -45,6 +45,39 @@ a {
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
 }
 
+.map-style {
+    position: fixed;
+    right: 12px;
+    bottom: 40px;
+    z-index: 2;
+    padding: 8px;
+    background: rgba(24, 28, 33, 0.92);
+    border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.map-style-buttons {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 6px;
+}
+
+.map-style-buttons button {
+    margin: 0;
+    padding: 6px 10px;
+    background: #2a3038;
+    font-size: 12px;
+}
+
+.map-style-buttons button.active {
+    background: #3d7bd9;
+}
+
+.map-style .check {
+    margin: 0;
+    font-size: 12px;
+}
+
 .panel {
     position: fixed;
     top: 56px;
@@ -494,6 +527,16 @@ th.active {
         bottom: 8px;
         width: auto;
         max-height: 60vh;
+    }
+
+    .map-style {
+        top: 150px;
+        bottom: auto;
+        right: 8px;
+    }
+
+    .map-style-buttons {
+        flex-direction: column;
     }
 
     .tool-banner {
